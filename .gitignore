@@ -1,0 +1,6 @@
+/build
+*.egg-info/
+.ruff_cache/
+.claude/
+.pytest_cache/
+__pycache__/
