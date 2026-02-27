@@ -18,7 +18,7 @@ class LLMResponse:
     content: str
     tool_calls: list[ToolCallResult]|None = field(default_factory=list)
     finish_reason: str ="stop"
-    useage: dict[str, Any]|None = field(default_factory=dict)
+    usage: dict[str, Any]|None = field(default_factory=dict)
     reasoning_content: str|None = None
 
 class BaseProvider(ABC):
@@ -30,7 +30,7 @@ class BaseProvider(ABC):
         self.api_base_url = api_base_url
 
     @abstractmethod
-    def chat(
+    async def chat(
         self,
         messages: list[dict[str, Any]],
         tools:list[dict[str,Any]]|None = None,
