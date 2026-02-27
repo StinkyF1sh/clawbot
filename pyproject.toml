@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "clawbot"
+version = "0.0.1"
+description = "A Python personal AI assistant."
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "litellm>=1.81.5,<2.0.0",
+    "openai>=2.24.0,<3.0.0",
+    "pydantic>=2.12.5,<3.0.0",
+    "pydantic-settings>=2.13.1,<3.0.0",
+    "pyyaml>=6.0,<7.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.0.0,<10.0.0",
+    "pytest-asyncio>=1.3.0,<2.0.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+clawbot = "clawbot.cli.app:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["clawbot"]
+
+[tool.hatch.build.targets.wheel.sources]
+"clawbot" = "clawbot"
+
+[tool.hatch.build]
+include = [
+    "clawbot/**/*.py",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
