@@ -38,6 +38,24 @@ myclaw
 
 **Entry Point:** `myclaw` CLI command → `clawbot.cli.app:app`
 
+## Code Style
+
+**Comments:**
+- Only comment when necessary - self-explanatory code needs no comments
+- Use single-line comments for clarity
+- Docstrings: single-line for simple functions, multi-line only when Args/Returns need explanation
+
+**Example:**
+```python
+def generate_session_id() -> str:
+    """Generate a unique session ID."""
+    return uuid.uuid4().hex
+
+# Filter metadata lines
+if not line or line.startswith("#"):
+    continue
+```
+
 ## Notes
 
 - This is a new project skeleton; most module files are empty placeholders

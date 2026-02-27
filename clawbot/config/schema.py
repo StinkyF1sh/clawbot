@@ -60,15 +60,7 @@ class ClawbotConfig(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
 
     def get_agent_config(self, agent_name: str = "default") -> AgentDefaults:
-        """Get agent configuration by name.
-
-        Args:
-            agent_name: Name of the agent configuration. Falls back to "default"
-                if not found, then to a new AgentDefaults instance.
-
-        Returns:
-            AgentDefaults configuration for the specified agent.
-        """
+        """Get agent configuration by name."""
         # First try to get the requested agent directly
         if agent_name in self.agents:
             return self.agents[agent_name]
