@@ -5,7 +5,6 @@ from pathlib import Path
 from clawbot.storage.session import (
     META_CREATED_AT_PREFIX,
     SessionConfig,
-    SessionMeta,
     SessionStorage,
 )
 

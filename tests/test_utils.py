@@ -79,7 +79,6 @@ class TestEnsureDirectory:
 
     def test_expands_user_home(self) -> None:
         """Test that ~ is expanded to home directory."""
-        import os
 
         # Path with ~ should be expanded
         result = ensure_directory("~/test_dir")

@@ -3,7 +3,8 @@
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from clawbot.storage.session import SessionConfig, SessionStorage
+    from clawbot.agent.session import AgentRuntimeConfig
+    from clawbot.storage.session import SessionStorage
 
 
 def get_system_prompt(workspace: str | None = None) -> str:
@@ -21,22 +22,22 @@ You can read, write, and analyze files in this directory.
 
 
 class ConversationHistory:
-    """In-memory conversation history management."""
+    """Conversation history bound to a single session_id."""
 
-    def __init__(self, max_window: int = 100):
-        """Initialize conversation history with max window size."""
+    def __init__(self, session_id: str, storage: "SessionStorage"):
+        self.session_id = session_id
+        self.storage = storage
         self.messages: list[dict[str, Any]] = []
-        self.max_window = max_window
+        self._loaded = False
 
     def append(self, message: dict[str, Any]) -> None:
         """Append a message in OpenAI format."""
         self.messages.append(message)
 
-    def trim_to_window(self, max_window: int | None = None) -> None:
+    def trim_to_window(self, max_window: int) -> None:
         """Keep only the latest max_window messages."""
-        window = max_window or self.max_window
-        if len(self.messages) > window:
-            self.messages = self.messages[-window:]
+        if len(self.messages) > max_window:
+            self.messages = self.messages[-max_window:]
 
     def extend(self, messages: list[dict[str, Any]]) -> None:
         """Extend history with multiple messages."""
@@ -46,110 +47,97 @@ class ConversationHistory:
         """Clear all history."""
         self.messages.clear()
 
-    def load_from_storage(self, session_id: str, storage: "SessionStorage") -> None:
-        """Load conversation history from storage."""
-        self.messages = storage.load_session(session_id)
+    def load(self) -> None:
+        """Load conversation history from storage (lazy load, once only)."""
+        if not self._loaded:
+            self.messages = self.storage.load_session(self.session_id)
+            self._loaded = True
 
-    def append_and_save(
-        self,
-        message: dict[str, Any],
-        session_id: str,
-        storage: "SessionStorage",
-    ) -> None:
-        """Append a message and save to storage."""
+    def save(self, message: dict[str, Any]) -> None:
+        """Append message and save to storage."""
         self.append(message)
-        storage.append_message(session_id, message)
+        self.storage.append_message(self.session_id, message)
 
     def append_assistant_response(
         self,
         content: str,
         tool_calls: list[dict] | None = None,
-        session_id: str | None = None,
-        storage: "SessionStorage | None" = None,
     ) -> None:
-        """Append assistant response to history, optionally saving to storage."""
+        """Append assistant response to history and save to storage."""
         msg: dict[str, Any] = {"role": "assistant", "content": content}
         if tool_calls:
             msg["tool_calls"] = tool_calls
-        self.append(msg)
-
-        if session_id and storage:
-            storage.append_message(session_id, msg)
+        self.save(msg)
 
     def append_tool_response(
         self,
         tool_call_id: str,
         result: Any,
         error: str | None = None,
-        session_id: str | None = None,
-        storage: "SessionStorage | None" = None,
     ) -> None:
-        """Append tool response to history, optionally saving to storage."""
+        """Append tool response to history and save to storage."""
         content = str(result) if error is None else f"Error: {error}"
         msg = {
             "role": "tool",
             "content": content,
             "tool_call_id": tool_call_id,
         }
-        self.append(msg)
-
-        if session_id and storage:
-            storage.append_message(session_id, msg)
+        self.save(msg)
 
 
 class ContextBuilder:
-    """Build messages list in OpenAI format."""
+    """Stateless utility class - globally shared."""
 
     def __init__(
         self,
-        workspace: str | None = None,
-        max_window: int = 100,
-        storage: "SessionStorage | None" = None,
+        storage: "SessionStorage",
+        default_workspace: str | None = None,
     ):
-        """Initialize context builder."""
-        self.workspace = workspace
-        self.max_window = max_window
         self.storage = storage
+        self.default_workspace = default_workspace
 
-    def load_history(self, session_id: str) -> ConversationHistory:
-        """Load conversation history from storage."""
-        if not self.storage:
-            raise ValueError("SessionStorage not configured.")
+    def _get_max_window(self, agent_config: "AgentRuntimeConfig | None") -> int:
+        return agent_config.memory_window if agent_config else 100
 
-        history = ConversationHistory(max_window=self.max_window)
-        history.load_from_storage(session_id, self.storage)
-        return history
-
-    def create_history(self, max_window: int | None = None) -> ConversationHistory:
-        """Create a new empty conversation history."""
-        return ConversationHistory(max_window=max_window or self.max_window)
+    def create_history(
+        self,
+        session_id: str,
+    ) -> ConversationHistory:
+        return ConversationHistory(session_id, self.storage)
 
     def build(
         self,
-        current_user_input: str | list[dict],
+        session_id: str,
+        user_input: str | list[dict],
+        agent_config: "AgentRuntimeConfig | None" = None,
         history: ConversationHistory | None = None,
-        config: "SessionConfig | None" = None,
     ) -> list[dict[str, Any]]:
-        """Build messages list for provider.chat()."""
+        """Build messages list for Provider.chat()."""
         messages: list[dict[str, Any]] = []
 
-        # 1. System prompt
-        workspace = config.workspace if config else self.workspace
+        workspace = (
+            agent_config.workspace
+            if agent_config
+            else self.default_workspace
+        )
         messages.append({
             "role": "system",
             "content": get_system_prompt(workspace),
         })
 
-        # 2. Conversation history
         if history:
-            max_window = config.max_window if config else None
-            history.trim_to_window(max_window)
+            history.trim_to_window(self._get_max_window(agent_config))
             messages.extend(history.messages)
+        else:
+            hist = self.create_history(session_id)
+            hist.load()
+            hist.trim_to_window(self._get_max_window(agent_config))
+            messages.extend(hist.messages)
 
-        # 3. Current user input
-        messages.append({
-            "role": "user",
-            "content": current_user_input,
-        })
+        if user_input:
+            messages.append({
+                "role": "user",
+                "content": user_input,
+            })
 
         return messages

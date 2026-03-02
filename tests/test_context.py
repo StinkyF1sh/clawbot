@@ -1,10 +1,11 @@
 """Tests for agent context management module."""
 
 from clawbot.agent.context import (
-    ConversationHistory,
     ContextBuilder,
+    ConversationHistory,
     get_system_prompt,
 )
+from clawbot.storage.session import SessionConfig, SessionStorage
 
 
 class TestGetSystemPrompt:
@@ -27,38 +28,48 @@ class TestGetSystemPrompt:
 class TestConversationHistoryInit:
     """Tests for ConversationHistory initialization."""
 
-    def test_default_max_window(self) -> None:
-        """Test default max window size."""
-        history = ConversationHistory()
-        assert history.max_window == 100
-        assert history.messages == []
+    def test_init_with_session_and_storage(self, tmp_path) -> None:
+        """Test initialization with session_id and storage."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        session_id = "test-session-123"
 
-    def test_custom_max_window(self) -> None:
-        """Test custom max window size."""
-        history = ConversationHistory(max_window=50)
-        assert history.max_window == 50
+        history = ConversationHistory(session_id, storage)
+        assert history.session_id == session_id
+        assert history.storage is storage
+        assert history.messages == []
+        assert history._loaded is False
 
 
 class TestConversationHistoryAppend:
     """Tests for ConversationHistory append methods."""
 
-    def test_append_single_message(self) -> None:
+    def test_append_single_message(self, tmp_path) -> None:
         """Test appending a single message."""
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append({"role": "user", "content": "Hello"})
         assert len(history.messages) == 1
         assert history.messages[0]["role"] == "user"
 
-    def test_append_multiple_messages(self) -> None:
+    def test_append_multiple_messages(self, tmp_path) -> None:
         """Test appending multiple messages."""
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append({"role": "user", "content": "Hello"})
         history.append({"role": "assistant", "content": "Hi there!"})
         assert len(history.messages) == 2
 
-    def test_extend_messages(self) -> None:
+    def test_extend_messages(self, tmp_path) -> None:
         """Test extending with multiple messages at once."""
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         messages = [
             {"role": "user", "content": "Hello"},
             {"role": "assistant", "content": "Hi"},
@@ -66,9 +77,12 @@ class TestConversationHistoryAppend:
         history.extend(messages)
         assert len(history.messages) == 2
 
-    def test_clear_history(self) -> None:
+    def test_clear_history(self, tmp_path) -> None:
         """Test clearing history."""
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append({"role": "user", "content": "Hello"})
         history.clear()
         assert len(history.messages) == 0
@@ -77,30 +91,39 @@ class TestConversationHistoryAppend:
 class TestConversationHistoryTrim:
     """Tests for ConversationHistory trim_to_window method."""
 
-    def test_trim_no_op_when_under_limit(self) -> None:
+    def test_trim_no_op_when_under_limit(self, tmp_path) -> None:
         """Test trim does nothing when under limit."""
-        history = ConversationHistory(max_window=100)
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append({"role": "user", "content": "Hello"})
-        history.trim_to_window()
+        history.trim_to_window(100)
         assert len(history.messages) == 1
 
-    def test_trim_keeps_latest_messages(self) -> None:
+    def test_trim_keeps_latest_messages(self, tmp_path) -> None:
         """Test trim keeps only the latest messages."""
-        history = ConversationHistory(max_window=3)
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         for i in range(5):
             history.append({"role": "user", "content": f"Message {i}"})
-        history.trim_to_window()
+        history.trim_to_window(3)
         assert len(history.messages) == 3
         # Should keep the last 3 messages
         assert history.messages[0]["content"] == "Message 2"
         assert history.messages[2]["content"] == "Message 4"
 
-    def test_trim_with_custom_window(self) -> None:
+    def test_trim_with_custom_window(self, tmp_path) -> None:
         """Test trim with custom window size."""
-        history = ConversationHistory(max_window=100)
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         for i in range(10):
             history.append({"role": "user", "content": f"Message {i}"})
-        history.trim_to_window(max_window=5)
+        history.trim_to_window(5)
         assert len(history.messages) == 5
         assert history.messages[0]["content"] == "Message 5"
 
@@ -108,37 +131,72 @@ class TestConversationHistoryTrim:
 class TestConversationHistoryStorage:
     """Tests for ConversationHistory storage methods."""
 
-    def test_append_and_save(self, tmp_path) -> None:
-        """Test appending message and saving to storage."""
-        from clawbot.storage.session import SessionConfig, SessionStorage
-
+    def test_load(self, tmp_path) -> None:
+        """Test loading from storage."""
         config = SessionConfig(workspace=str(tmp_path))
         storage = SessionStorage(config=config)
         session_id = "test-session-123"
 
-        history = ConversationHistory()
-        history.append_and_save(
-            {"role": "user", "content": "Hello"},
-            session_id,
-            storage,
-        )
+        # First save a message
+        storage.append_message(session_id, {"role": "user", "content": "Hello"})
 
-        # Verify message was saved
+        # Then load
+        history = ConversationHistory(session_id, storage)
+        history.load()
+
+        assert len(history.messages) == 1
+        assert history.messages[0]["role"] == "user"
+        assert history._loaded is True
+
+    def test_load_only_once(self, tmp_path) -> None:
+        """Test that load() only loads once."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        session_id = "test-session-123"
+
+        storage.append_message(session_id, {"role": "user", "content": "Hello"})
+
+        history = ConversationHistory(session_id, storage)
+        history.load()
+        history.load()  # Second call should be no-op
+
+        assert history._loaded is True
+        assert len(history.messages) == 1
+
+    def test_save_appends_and_persists(self, tmp_path) -> None:
+        """Test save appends to memory and persists to storage."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        session_id = "test-session-123"
+
+        history = ConversationHistory(session_id, storage)
+        history.save({"role": "user", "content": "Hello"})
+
+        assert len(history.messages) == 1
+        assert history.messages[0]["content"] == "Hello"
+
+        # Verify persisted to storage
         loaded = storage.load_session(session_id)
         assert len(loaded) == 1
-        assert loaded[0]["role"] == "user"
+        assert loaded[0]["content"] == "Hello"
 
-    def test_append_assistant_response_without_tool_calls(self) -> None:
-        """Test appending assistant response without tool calls."""
-        history = ConversationHistory()
+    def test_append_assistant_response(self, tmp_path) -> None:
+        """Test appending assistant response."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append_assistant_response(content="Hello!")
         assert len(history.messages) == 1
         assert history.messages[0] == {"role": "assistant", "content": "Hello!"}
 
-    def test_append_assistant_response_with_tool_calls(self) -> None:
+    def test_append_assistant_response_with_tool_calls(self, tmp_path) -> None:
         """Test appending assistant response with tool calls."""
-        history = ConversationHistory()
-        tool_calls = [{"id": "call_1", "function": {"name": "test"}}]
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
+        tool_calls = [{"id": "call_1", "type": "function", "function": {"name": "test"}}]
         history.append_assistant_response(
             content="Let me check",
             tool_calls=tool_calls,
@@ -148,9 +206,12 @@ class TestConversationHistoryStorage:
         assert history.messages[0]["content"] == "Let me check"
         assert history.messages[0]["tool_calls"] == tool_calls
 
-    def test_append_tool_response(self) -> None:
+    def test_append_tool_response(self, tmp_path) -> None:
         """Test appending tool response."""
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append_tool_response(
             tool_call_id="call_1",
             result="Weather is sunny",
@@ -161,9 +222,12 @@ class TestConversationHistoryStorage:
         assert msg["content"] == "Weather is sunny"
         assert msg["tool_call_id"] == "call_1"
 
-    def test_append_tool_response_with_error(self) -> None:
+    def test_append_tool_response_with_error(self, tmp_path) -> None:
         """Test appending tool response with error."""
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        history = ConversationHistory("test-session", storage)
+
         history.append_tool_response(
             tool_call_id="call_1",
             result=None,
@@ -175,137 +239,169 @@ class TestConversationHistoryStorage:
 class TestContextBuilderInit:
     """Tests for ContextBuilder initialization."""
 
-    def test_init_with_defaults(self) -> None:
-        """Test initialization with default values."""
-        builder = ContextBuilder()
-        assert builder.workspace is None
-        assert builder.max_window == 100
-        assert builder.storage is None
+    def test_init_requires_storage(self, tmp_path) -> None:
+        """Test initialization requires storage parameter."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
 
-    def test_init_with_custom_values(self) -> None:
-        """Test initialization with custom values."""
-        builder = ContextBuilder(
-            workspace="/tmp/workspace",
-            max_window=50,
-        )
-        assert builder.workspace == "/tmp/workspace"
-        assert builder.max_window == 50
+        builder = ContextBuilder(storage=storage)
+        assert builder.storage is storage
+        assert builder.default_workspace is None
+
+    def test_init_with_default_workspace(self, tmp_path) -> None:
+        """Test initialization with default workspace."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+
+        builder = ContextBuilder(storage=storage, default_workspace="/tmp/workspace")
+        assert builder.default_workspace == "/tmp/workspace"
 
 
 class TestContextBuilderCreateHistory:
     """Tests for ContextBuilder history creation methods."""
 
-    def test_create_history(self) -> None:
+    def test_create_history(self, tmp_path) -> None:
         """Test creating new empty history."""
-        builder = ContextBuilder()
-        history = builder.create_history()
-        assert isinstance(history, ConversationHistory)
-        assert len(history.messages) == 0
-
-    def test_create_history_with_custom_window(self) -> None:
-        """Test creating history with custom window."""
-        builder = ContextBuilder(max_window=100)
-        history = builder.create_history(max_window=50)
-        assert history.max_window == 50
-
-    def test_load_history_without_storage(self) -> None:
-        """Test loading history without storage raises error."""
-        builder = ContextBuilder()
-        try:
-            builder.load_history("session-123")
-        except ValueError as e:
-            assert "SessionStorage not configured" in str(e)
-
-    def test_load_history_with_storage(self, tmp_path) -> None:
-        """Test loading history with storage."""
-        from clawbot.storage.session import SessionConfig, SessionStorage
-
         config = SessionConfig(workspace=str(tmp_path))
         storage = SessionStorage(config=config)
         builder = ContextBuilder(storage=storage)
 
-        # First save a message
+        history = builder.create_history("test-session")
+        assert isinstance(history, ConversationHistory)
+        assert history.session_id == "test-session"
+        assert len(history.messages) == 0
+
+    def test_load_history_via_builder(self, tmp_path) -> None:
+        """Test loading history via ContextBuilder."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage)
+
         session_id = "test-session"
         storage.append_message(session_id, {"role": "user", "content": "Hello"})
 
-        # Then load
-        history = builder.load_history(session_id)
+        history = builder.create_history(session_id)
+        history.load()
+
         assert len(history.messages) == 1
 
 
 class TestContextBuilderBuild:
     """Tests for ContextBuilder build method."""
 
-    def test_build_with_only_user_input(self) -> None:
+    def test_build_with_only_user_input(self, tmp_path) -> None:
         """Test building messages with only user input."""
-        builder = ContextBuilder()
-        messages = builder.build(current_user_input="Hello")
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage)
+
+        messages = builder.build(
+            session_id="test-session",
+            user_input="Hello",
+        )
         assert len(messages) == 2  # system + user
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
         assert messages[1]["content"] == "Hello"
 
-    def test_build_with_history(self) -> None:
+    def test_build_with_history(self, tmp_path) -> None:
         """Test building messages with conversation history."""
-        builder = ContextBuilder()
-        history = ConversationHistory()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage)
+
+        history = ConversationHistory("test-session", storage)
         history.append({"role": "user", "content": "Previous"})
         history.append({"role": "assistant", "content": "Response"})
 
         messages = builder.build(
-            current_user_input="New message",
+            session_id="test-session",
+            user_input="New message",
             history=history,
         )
         assert len(messages) == 4  # system + 2 history + user
         assert messages[1]["content"] == "Previous"
         assert messages[2]["content"] == "Response"
 
-    def test_build_with_config(self, tmp_path) -> None:
-        """Test building messages with SessionConfig."""
-        from clawbot.storage.session import SessionConfig
+    def test_build_with_agent_config(self, tmp_path) -> None:
+        """Test building messages with AgentRuntimeConfig."""
+        from clawbot.agent.session import AgentRuntimeConfig
 
-        config = SessionConfig(
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage)
+
+        agent_config = AgentRuntimeConfig(
+            name="test",
             workspace=str(tmp_path),
-            max_window=50,
+            model="zhipu/glm-4.7",
+            max_tokens=4096,
+            temperature=0.1,
+            max_tool_iterations=10,
+            memory_window=50,
         )
-        builder = ContextBuilder(workspace="/default/workspace")
 
         messages = builder.build(
-            current_user_input="Hello",
-            config=config,
+            session_id="test-session",
+            user_input="Hello",
+            agent_config=agent_config,
         )
-        # Check workspace from config is used in system prompt
+        # Check workspace from agent_config is used in system prompt
         assert str(tmp_path) in messages[0]["content"]
 
-    def test_build_trims_history_based_on_config(self) -> None:
-        """Test that history is trimmed based on config."""
-        from clawbot.storage.session import SessionConfig
+    def test_build_trims_history_based_on_agent_config(self, tmp_path) -> None:
+        """Test that history is trimmed based on agent config."""
+        from clawbot.agent.session import AgentRuntimeConfig
 
-        config = SessionConfig(workspace="/tmp", max_window=2)
-        builder = ContextBuilder()
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage)
 
-        history = ConversationHistory(max_window=100)
+        agent_config = AgentRuntimeConfig(
+            name="test",
+            workspace=str(tmp_path),
+            model="zhipu/glm-4.7",
+            max_tokens=4096,
+            temperature=0.1,
+            max_tool_iterations=10,
+            memory_window=2,
+        )
+
+        history = ConversationHistory("test-session", storage)
         for i in range(5):
             history.append({"role": "user", "content": f"Message {i}"})
 
         messages = builder.build(
-            current_user_input="Final",
+            session_id="test-session",
+            user_input="Final",
+            agent_config=agent_config,
             history=history,
-            config=config,
         )
         # History should be trimmed to 2 messages + system + user input
         assert len(messages) == 4  # system + 2 history + user
 
-    def test_build_system_prompt_includes_workspace(self, tmp_path) -> None:
-        """Test that system prompt includes workspace from config."""
-        from clawbot.storage.session import SessionConfig
+    def test_build_system_prompt_includes_agent_workspace(self, tmp_path) -> None:
+        """Test that system prompt includes workspace from agent config."""
+        from clawbot.agent.session import AgentRuntimeConfig
 
         config = SessionConfig(workspace=str(tmp_path))
-        builder = ContextBuilder()
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage, default_workspace="/default")
+
+        agent_config = AgentRuntimeConfig(
+            name="test",
+            workspace=str(tmp_path),
+            model="zhipu/glm-4.7",
+            max_tokens=4096,
+            temperature=0.1,
+            max_tool_iterations=10,
+            memory_window=100,
+        )
 
         messages = builder.build(
-            current_user_input="Hello",
-            config=config,
+            session_id="test-session",
+            user_input="Hello",
+            agent_config=agent_config,
         )
         system_prompt = messages[0]["content"]
         assert str(tmp_path) in system_prompt
