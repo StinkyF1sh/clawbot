@@ -2,8 +2,8 @@
 
 from typing import TYPE_CHECKING
 
+from clawbot.queue.constants import QUEUE_TIMEOUT
 from clawbot.queue.queue import OutputMessage
-from clawbot.util import QUEUE_TIMEOUT
 
 if TYPE_CHECKING:
     from clawbot.channels.base import BaseChannel

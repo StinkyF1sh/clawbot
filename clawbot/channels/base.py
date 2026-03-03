@@ -9,14 +9,30 @@ Channel does not handle business logic, only message input/output.
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
-from clawbot.agent.session import ChannelMessage
+from clawbot.queue.constants import POLL_INTERVAL
 from clawbot.queue.queue import InputMessage
-from clawbot.util import POLL_INTERVAL
 
 if TYPE_CHECKING:
     from clawbot.queue.queue import InputQueue
+
+
+@dataclass
+class ChannelMessage:
+    """Raw message received from Channel."""
+
+    channel_id: str
+    channel_session_id: str
+    agent_name: str
+    content: str
+    metadata: dict[str, Any] | None = None
+
+    @property
+    def resolved_session_id(self) -> str:
+        """Generate global session_id from channel_id and channel_session_id."""
+        return f"{self.channel_id}:{self.channel_session_id}"
 
 
 class BaseChannel(ABC):

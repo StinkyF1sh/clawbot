@@ -1,5 +1,6 @@
 """Agent package for Clawbot."""
 
+from clawbot.agent.config import AgentRuntimeConfig, ChannelMessage
 from clawbot.agent.context import (
     ContextBuilder,
     ConversationHistory,
@@ -10,13 +11,9 @@ from clawbot.agent.loop import (
     GlobalAgentLoop,
     SingleSessionAgentLoop,
 )
-from clawbot.agent.session import (
-    AgentRuntimeConfig,
-    ChannelMessage,
-)
 
 __all__ = [
-    # Session
+    # Config
     "AgentRuntimeConfig",
     "ChannelMessage",
     # Context

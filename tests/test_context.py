@@ -325,7 +325,7 @@ class TestContextBuilderBuild:
 
     def test_build_with_agent_config(self, tmp_path) -> None:
         """Test building messages with AgentRuntimeConfig."""
-        from clawbot.agent.session import AgentRuntimeConfig
+        from clawbot.agent.config import AgentRuntimeConfig
 
         config = SessionConfig(workspace=str(tmp_path))
         storage = SessionStorage(config=config)
@@ -351,7 +351,7 @@ class TestContextBuilderBuild:
 
     def test_build_trims_history_based_on_agent_config(self, tmp_path) -> None:
         """Test that history is trimmed based on agent config."""
-        from clawbot.agent.session import AgentRuntimeConfig
+        from clawbot.agent.config import AgentRuntimeConfig
 
         config = SessionConfig(workspace=str(tmp_path))
         storage = SessionStorage(config=config)
@@ -382,7 +382,7 @@ class TestContextBuilderBuild:
 
     def test_build_system_prompt_includes_agent_workspace(self, tmp_path) -> None:
         """Test that system prompt includes workspace from agent config."""
-        from clawbot.agent.session import AgentRuntimeConfig
+        from clawbot.agent.config import AgentRuntimeConfig
 
         config = SessionConfig(workspace=str(tmp_path))
         storage = SessionStorage(config=config)

@@ -3,11 +3,6 @@
 import uuid
 from pathlib import Path
 
-# Async loop polling interval (seconds)
-POLL_INTERVAL = 0.1
-# Queue operation timeout (seconds)
-QUEUE_TIMEOUT = 0.1
-
 
 def generate_session_id() -> str:
     """Generate a unique session ID."""

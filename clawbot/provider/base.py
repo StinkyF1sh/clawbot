@@ -1,7 +1,7 @@
 """Base provider for the Clawbot agent."""
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 
@@ -16,10 +16,10 @@ class ToolCallResult:
 class LLMResponse:
     """Response from the LLM."""
     content: str
-    tool_calls: list[ToolCallResult]|None = field(default_factory=list)
-    finish_reason: str ="stop"
-    usage: dict[str, Any]|None = field(default_factory=dict)
-    reasoning_content: str|None = None
+    tool_calls: list[ToolCallResult] | None = None
+    finish_reason: str = "stop"
+    usage: dict[str, Any] | None = None
+    reasoning_content: str | None = None
 
 class BaseProvider(ABC):
     """Base provider for the Clawbot agent."""

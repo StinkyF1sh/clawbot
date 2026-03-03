@@ -1,4 +1,4 @@
-"""Session and agent runtime configuration for Clawbot."""
+"""Agent runtime configuration for Clawbot."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,6 +19,13 @@ class AgentRuntimeConfig:
     temperature: float
     max_tool_iterations: int
     memory_window: int
+
+    @property
+    def model_name(self) -> str:
+        """Extract pure model name without provider prefix."""
+        if "/" in self.model:
+            return self.model.split("/", 1)[1]
+        return self.model
 
     @classmethod
     def from_agent_defaults(cls, name: str, cfg: AgentDefaults) -> "AgentRuntimeConfig":

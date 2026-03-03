@@ -3,7 +3,7 @@
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from clawbot.agent.session import AgentRuntimeConfig
+    from clawbot.agent.config import AgentRuntimeConfig
     from clawbot.storage.session import SessionStorage
 
 

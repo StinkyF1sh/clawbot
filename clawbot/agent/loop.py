@@ -11,11 +11,11 @@ SingleSessionAgentLoop: Inner loop, bound to single session, executes conversati
 
 from typing import TYPE_CHECKING
 
+from clawbot.agent.config import AgentRuntimeConfig
 from clawbot.agent.context import ContextBuilder
-from clawbot.agent.session import AgentRuntimeConfig
+from clawbot.queue.constants import QUEUE_TIMEOUT
 from clawbot.queue.queue import InputMessage, TaskQueueManager
 from clawbot.storage.session import SessionStorage
-from clawbot.util import QUEUE_TIMEOUT
 
 if TYPE_CHECKING:
     from clawbot.config.schema import ClawbotConfig
@@ -98,16 +98,18 @@ class SingleSessionAgentLoop:
         """Execute a single conversation turn."""
         self.history.load()
 
+        self.history.save({"role": "user", "content": user_input})
+
         messages = self.context_builder.build(
             session_id=self.session_id,
-            user_input=user_input,
+            user_input="",
             agent_config=self.agent_config,
             history=self.history,
         )
 
         response = await self.provider.chat(
             messages=messages,
-            model=self.agent_config.model,
+            model=self.agent_config.model_name,
             max_tokens=self.agent_config.max_tokens,
             temp=self.agent_config.temperature,
         )
@@ -150,7 +152,7 @@ class SingleSessionAgentLoop:
 
         response = await self.provider.chat(
             messages=messages,
-            model=self.agent_config.model,
+            model=self.agent_config.model_name,
             max_tokens=self.agent_config.max_tokens,
             temp=self.agent_config.temperature,
         )

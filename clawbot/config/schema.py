@@ -78,9 +78,13 @@ class ClawbotConfig(BaseSettings):
 
     def _parse_provider_name(self, model: str) -> str:
         """Extract provider name from model string."""
-        agent_config = self.get_agent_config()
-        model_lower = (model or agent_config.model).lower()
+        if not model:
+            agent_config = self.get_agent_config()
+            model = agent_config.model
+
+        model_lower = model.lower()
         provider = model_lower.split("/")[0].replace("-", "_")
+
         if hasattr(self.providers, provider):
             return provider
         return "openai"  # Default to openai for unknown/bare model names

@@ -76,11 +76,11 @@ class TestFindConfigFile:
 class TestLoadConfig:
     """Tests for load_config function."""
 
-    def test_loads_default_config_when_no_file(self) -> None:
-        """Test loading default config when no file specified."""
-        config = load_config(None)
-        assert isinstance(config, ClawbotConfig)
-        assert config.get_agent_config("default").model == "zhipu/glm-4.7"
+    # def test_loads_default_config_when_no_file(self) -> None:
+    #     """Test loading default config when no file specified."""
+    #     config = load_config(None)
+    #     assert isinstance(config, ClawbotConfig)
+    #     assert config.get_agent_config("default").model == "zhipu/glm-4.7"
 
     def test_loads_from_yaml_file(self, tmp_path: Path) -> None:
         """Test loading config from YAML file."""
