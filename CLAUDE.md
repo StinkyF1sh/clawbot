@@ -35,7 +35,7 @@ clawbot
 - `provider/` - LLM provider implementations (`BaseProvider`, `LiteLLMProvider`, `OpenAICompatibleProvider`)
 - `queue/` - Dual-queue task management (`InputQueue`, `OutputQueue`, `TaskQueueManager`)
 - `storage/` - Session persistence using JSONL format
-- `tools/` - Tool abstraction and execution framework
+- `tools/` - Tool abstraction and execution framework (`Tool`, `ToolRegistry`, built-in tools)
 
 **Entry Point:** `clawbot` CLI command → `clawbot.cli.app:app`
 
@@ -60,3 +60,18 @@ clawbot
 - Configuration supports both YAML file and environment variables (prefix: `CLAWBOT_`)
 - Dual-loop architecture: `GlobalAgentLoop` (dispatcher) + `SingleSessionAgentLoop` (per-session)
 - Dual-queue design: `InputQueue` (channel → agent) + `OutputQueue` (agent → channel)
+
+## Tools
+
+**Built-in Tools:**
+- `ReadFileTool` - Read file contents
+- `WriteFileTool` - Write content to file (creates parent directories)
+- `EditFileTool` - Edit file by replacing text (with diff-based error messages)
+- `ListDirTool` - List directory contents
+- `ExecTool` - Execute shell commands (with safety guards)
+
+**Safety Features:**
+- Path sandboxing via `allowed_dir` restriction
+- Command deny patterns block dangerous operations (rm -rf, format, etc.)
+- Optional workspace restriction for shell commands
+- Command timeout (default 60s)
