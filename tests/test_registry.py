@@ -1,7 +1,8 @@
 """Tests for tool registry module."""
 
-import pytest
 from typing import Any
+
+import pytest
 
 from clawbot.tools.base import Tool
 from clawbot.tools.registry import ToolRegistry

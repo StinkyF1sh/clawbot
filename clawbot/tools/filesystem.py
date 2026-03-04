@@ -7,7 +7,11 @@ from typing import Any
 from clawbot.tools.base import Tool
 
 
-def _resolve_path(path: str, workspace: Path | None = None, allowed_dir: Path | None = None) -> Path:
+def _resolve_path(
+    path: str,
+    workspace: Path | None = None,
+    allowed_dir: Path | None = None,
+) -> Path:
     """Resolve path against workspace (if relative) and enforce directory restriction."""
     p = Path(path).expanduser()
     if not p.is_absolute() and workspace:
@@ -31,11 +35,11 @@ class ReadFileTool(Tool):
     @property
     def name(self) -> str:
         return "read_file"
-    
+
     @property
     def description(self) -> str:
         return "Read the contents of a file at the given path."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
         return {
@@ -48,7 +52,7 @@ class ReadFileTool(Tool):
             },
             "required": ["path"]
         }
-    
+
     async def execute(self, path: str, **kwargs: Any) -> str:
         try:
             file_path = _resolve_path(path, self._workspace, self._allowed_dir)
@@ -75,11 +79,11 @@ class WriteFileTool(Tool):
     @property
     def name(self) -> str:
         return "write_file"
-    
+
     @property
     def description(self) -> str:
         return "Write content to a file at the given path. Creates parent directories if needed."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
         return {
@@ -96,7 +100,7 @@ class WriteFileTool(Tool):
             },
             "required": ["path", "content"]
         }
-    
+
     async def execute(self, path: str, content: str, **kwargs: Any) -> str:
         try:
             file_path = _resolve_path(path, self._workspace, self._allowed_dir)
@@ -119,11 +123,14 @@ class EditFileTool(Tool):
     @property
     def name(self) -> str:
         return "edit_file"
-    
+
     @property
     def description(self) -> str:
-        return "Edit a file by replacing old_text with new_text. The old_text must exist exactly in the file."
-    
+        return (
+            "Edit a file by replacing old_text with new_text. "
+            "The old_text must exist exactly in the file."
+        )
+
     @property
     def parameters(self) -> dict[str, Any]:
         return {
@@ -144,7 +151,7 @@ class EditFileTool(Tool):
             },
             "required": ["path", "old_text", "new_text"]
         }
-    
+
     async def execute(self, path: str, old_text: str, new_text: str, **kwargs: Any) -> str:
         try:
             file_path = _resolve_path(path, self._workspace, self._allowed_dir)
@@ -159,7 +166,11 @@ class EditFileTool(Tool):
             # Count occurrences
             count = content.count(old_text)
             if count > 1:
-                return f"Warning: old_text appears {count} times. Please provide more context to make it unique."
+                msg = (
+                    f"Warning: old_text appears {count} times. "
+                    "Please provide more context to make it unique."
+                )
+                return msg
 
             new_content = content.replace(old_text, new_text, 1)
             file_path.write_text(new_content, encoding="utf-8")
@@ -186,11 +197,18 @@ class EditFileTool(Tool):
         if best_ratio > 0.5:
             diff = "\n".join(difflib.unified_diff(
                 old_lines, lines[best_start : best_start + window],
-                fromfile="old_text (provided)", tofile=f"{path} (actual, line {best_start + 1})",
+                fromfile="old_text (provided)",
+                tofile=f"{path} (actual, line {best_start + 1})",
                 lineterm="",
             ))
-            return f"Error: old_text not found in {path}.\nBest match ({best_ratio:.0%} similar) at line {best_start + 1}:\n{diff}"
-        return f"Error: old_text not found in {path}. No similar text found. Verify the file content."
+            return (
+                f"Error: old_text not found in {path}.\n"
+                f"Best match ({best_ratio:.0%} similar) at line {best_start + 1}:\n{diff}"
+            )
+        return (
+            f"Error: old_text not found in {path}. "
+            "No similar text found. Verify the file content."
+        )
 
 
 class ListDirTool(Tool):
@@ -203,11 +221,11 @@ class ListDirTool(Tool):
     @property
     def name(self) -> str:
         return "list_dir"
-    
+
     @property
     def description(self) -> str:
         return "List the contents of a directory."
-    
+
     @property
     def parameters(self) -> dict[str, Any]:
         return {
@@ -220,7 +238,7 @@ class ListDirTool(Tool):
             },
             "required": ["path"]
         }
-    
+
     async def execute(self, path: str, **kwargs: Any) -> str:
         try:
             dir_path = _resolve_path(path, self._workspace, self._allowed_dir)

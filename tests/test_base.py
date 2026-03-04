@@ -1,7 +1,8 @@
 """Tests for tool base class module."""
 
-import pytest
 from typing import Any
+
+import pytest
 
 from clawbot.tools.base import Tool
 

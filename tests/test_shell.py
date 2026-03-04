@@ -1,9 +1,9 @@
 """Tests for shell execution tool module."""
 
-import asyncio
 import os
-import pytest
 from pathlib import Path
+
+import pytest
 
 from clawbot.tools.shell import ExecTool
 
@@ -137,7 +137,8 @@ class TestExecToolExecute:
     async def test_execute_command_with_stderr(self) -> None:
         """Test executing command that produces stderr."""
         tool = ExecTool()
-        result = await tool.execute(command="python -c \"import sys; print('error', file=sys.stderr)\"")
+        cmd = "python -c \"import sys; print('error', file=sys.stderr)\""
+        result = await tool.execute(command=cmd)
         assert "STDERR:" in result or "error" in result
 
     @pytest.mark.asyncio
@@ -166,10 +167,10 @@ class TestExecToolExecute:
     async def test_execute_truncates_long_output(self) -> None:
         """Test that long output is truncated."""
         tool = ExecTool()
-        
+
         async def long_output_cmd():
             return "python -c \"print('x' * 15000, end='')\""
-        
+
         result = await tool.execute(command=await long_output_cmd())
         assert "truncated" in result
 

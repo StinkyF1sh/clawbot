@@ -1,13 +1,100 @@
 """Tests for SingleSessionAgentLoop conversation history management."""
 
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from clawbot.agent.config import AgentRuntimeConfig
 from clawbot.agent.context import ContextBuilder
 from clawbot.agent.loop import SingleSessionAgentLoop
+from clawbot.provider.base import LLMResponse
 from clawbot.storage.session import SessionConfig, SessionStorage
+from clawbot.tools.registry import ToolRegistry
+
+
+class MockTool:
+    """Mock tool for testing."""
+
+    def __init__(
+        self,
+        name: str = "mock_tool",
+        description: str = "A mock tool",
+        parameters: dict[str, Any] | None = None,
+        result: str = "Mock result",
+    ):
+        self._name = name
+        self._description = description
+        self._parameters = parameters or {
+            "type": "object",
+            "properties": {"input": {"type": "string"}},
+            "required": ["input"],
+        }
+        self._result = result
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return self._parameters
+
+    async def execute(self, **kwargs: Any) -> str:
+        return self._result
+
+    def to_schema(self) -> dict[str, Any]:
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": self.description,
+                "parameters": self.parameters,
+            },
+        }
+
+    def validate_params(self, params: dict[str, Any]) -> list[str]:
+        return []
+
+
+class MockProvider:
+    """Mock LLM provider for testing."""
+
+    def __init__(self, responses: list[LLMResponse] | None = None):
+        self.responses = responses or []
+        self.call_count = 0
+
+    async def chat(
+        self,
+        messages: list[dict[str, Any]],
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temp: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> LLMResponse:
+        """Simulate LLM chat response."""
+        self.call_count += 1
+
+        if self.responses and self.call_count <= len(self.responses):
+            return self.responses[self.call_count - 1]
+
+        return LLMResponse(
+            content="Default response",
+            tool_calls=None,
+            finish_reason="stop",
+        )
+
+
+@pytest.fixture
+def tool_registry() -> ToolRegistry:
+    """Create test tool registry."""
+    registry = ToolRegistry()
+    registry.register(MockTool(name="test_tool", result="Test result"))
+    return registry
 
 
 class TestSingleSessionAgentLoopHistory:
@@ -43,23 +130,15 @@ class TestSingleSessionAgentLoopHistory:
         agent_config: AgentRuntimeConfig,
         storage: SessionStorage,
         context_builder: ContextBuilder,
+        tool_registry: ToolRegistry,
     ) -> None:
         """Test that user messages are persisted to history, not just assistant responses."""
         session_id = "test-session-123"
 
-        # Create a mock provider that returns fixed responses
-        class MockProvider:
-            async def chat(self, messages, model, max_tokens, temp):
-                from clawbot.provider.base import LLMResponse
-                is_user = messages[-1]["role"] == "user"
-                last_content = messages[-1]["content"] if is_user else "unknown"
-                return LLMResponse(
-                    content=f"Response to: {last_content}",
-                    tool_calls=None,
-                    usage=None,
-                )
-
-        provider = MockProvider()
+        provider = MockProvider([
+            LLMResponse(content="Response to: Hello", tool_calls=None, finish_reason="stop"),
+            LLMResponse(content="Response to: Who are you?", tool_calls=None, finish_reason="stop"),
+        ])
 
         loop = SingleSessionAgentLoop(
             session_id=session_id,
@@ -67,6 +146,7 @@ class TestSingleSessionAgentLoopHistory:
             storage=storage,
             context_builder=context_builder,
             provider=provider,
+            tool_registry=tool_registry,
         )
 
         # First turn
@@ -104,20 +184,15 @@ class TestSingleSessionAgentLoopHistory:
         agent_config: AgentRuntimeConfig,
         storage: SessionStorage,
         context_builder: ContextBuilder,
+        tool_registry: ToolRegistry,
     ) -> None:
         """Test that history is correctly loaded when creating a new loop instance."""
         session_id = "test-session-456"
 
-        class MockProvider:
-            async def chat(self, messages, model, max_tokens, temp):
-                from clawbot.provider.base import LLMResponse
-                return LLMResponse(
-                    content="OK",
-                    tool_calls=None,
-                    usage=None,
-                )
-
-        provider = MockProvider()
+        provider = MockProvider([
+            LLMResponse(content="OK", tool_calls=None, finish_reason="stop"),
+            LLMResponse(content="OK", tool_calls=None, finish_reason="stop"),
+        ])
 
         # First loop instance
         loop1 = SingleSessionAgentLoop(
@@ -126,6 +201,7 @@ class TestSingleSessionAgentLoopHistory:
             storage=storage,
             context_builder=context_builder,
             provider=provider,
+            tool_registry=tool_registry,
         )
 
         import asyncio
@@ -139,6 +215,7 @@ class TestSingleSessionAgentLoopHistory:
             storage=storage,
             context_builder=context_builder,
             provider=provider,
+            tool_registry=tool_registry,
         )
 
         # Verify the new loop can load the history
