@@ -8,14 +8,7 @@ from clawbot.provider.base import BaseProvider, LLMResponse, ToolCallResult
 
 
 class OpenAICompatibleProvider(BaseProvider):
-    """OpenAI-compatible API provider using the official OpenAI SDK.
-
-    This provider works with any OpenAI-compatible API endpoint, including:
-    - OpenAI API
-    - Zhipu AI
-    - Bailian (DashScope)
-    - Other compatible endpoints
-    """
+    """OpenAI-compatible API provider using the official OpenAI SDK."""
 
 
     def __init__(
@@ -24,13 +17,7 @@ class OpenAICompatibleProvider(BaseProvider):
         api_base_url: str ="https://default.com/v1",
         default_model: str = "default",
     ):
-        """Initialize the OpenAI-compatible provider.
-
-        Args:
-            api_key: API key for authentication.
-            api_base_url: Base URL for the API endpoint.
-            extra_headers: Additional headers to include in requests.
-        """
+        """Initialize the OpenAI-compatible provider."""
         super().__init__(api_key, api_base_url)
         self.default_model = default_model
         self._client = AsyncOpenAI(api_key=api_key, base_url=api_base_url)
@@ -43,18 +30,7 @@ class OpenAICompatibleProvider(BaseProvider):
         max_tokens: int | None = None,
         temp: float | None = None,
     ) -> LLMResponse:
-        """Send a message to the LLM and get a response.
-
-        Args:
-            messages: List of message dictionaries with role and content.
-            tools: List of tool definitions in OpenAI function format.
-            model: Model name to use (overrides default).
-            max_tokens: Maximum tokens in response.
-            temp: Sampling temperature.
-
-        Returns:
-            LLMResponse containing the model's response.
-        """
+        """Send a message to the LLM and get a response."""
         # Sanitize empty content in messages
         sanitized_messages = self._sanitize_empty_content(messages)
 
@@ -113,14 +89,7 @@ class OpenAICompatibleProvider(BaseProvider):
         )
 
     def _parse_arguments(self, arguments: str) -> dict[str, Any]:
-        """Parse tool call arguments from JSON string.
-
-        Args:
-            arguments: JSON string of arguments.
-
-        Returns:
-            Parsed dictionary of arguments.
-        """
+        """Parse tool call arguments from JSON string."""
         import json
 
         try:
@@ -130,9 +99,5 @@ class OpenAICompatibleProvider(BaseProvider):
             return {"raw": arguments}
 
     def get_default_model(self) -> str:
-        """Get the default model for this provider.
-
-        Returns:
-            Default model name.
-        """
+        """Get the default model for this provider."""
         return self.default_model

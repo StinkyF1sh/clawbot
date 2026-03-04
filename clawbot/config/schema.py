@@ -20,6 +20,7 @@ class AgentDefaults(Base):
     temperature: float = 0.1
     max_tool_iterations: int = 40
     memory_window: int = 100
+    max_steps: int | None = None
 
 class AgentsConfig(RootModel[dict[str, AgentDefaults]]):
     """Agent configurations mapping."""
@@ -60,15 +61,7 @@ class ClawbotConfig(BaseSettings):
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
 
     def get_agent_config(self, agent_name: str = "default") -> AgentDefaults:
-        """Get agent configuration by name.
-
-        Args:
-            agent_name: Name of the agent configuration. Falls back to "default"
-                if not found, then to a new AgentDefaults instance.
-
-        Returns:
-            AgentDefaults configuration for the specified agent.
-        """
+        """Get agent configuration by name."""
         # First try to get the requested agent directly
         if agent_name in self.agents:
             return self.agents[agent_name]
@@ -86,9 +79,13 @@ class ClawbotConfig(BaseSettings):
 
     def _parse_provider_name(self, model: str) -> str:
         """Extract provider name from model string."""
-        agent_config = self.get_agent_config()
-        model_lower = (model or agent_config.model).lower()
+        if not model:
+            agent_config = self.get_agent_config()
+            model = agent_config.model
+
+        model_lower = model.lower()
         provider = model_lower.split("/")[0].replace("-", "_")
+
         if hasattr(self.providers, provider):
             return provider
         return "openai"  # Default to openai for unknown/bare model names

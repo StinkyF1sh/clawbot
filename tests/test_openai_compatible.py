@@ -576,7 +576,7 @@ class TestLLMResponse:
 
         response = LLMResponse(content="Test")
 
-        assert response.tool_calls == []
+        assert response.tool_calls is None
         assert response.finish_reason == "stop"
 
 
