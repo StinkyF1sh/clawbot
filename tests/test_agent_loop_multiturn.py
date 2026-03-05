@@ -263,6 +263,19 @@ class TestShouldTerminate:
 
         assert loop._should_terminate(response, can_use_tools=True) is False
 
+    def test_terminate_on_tool_calls_with_empty_calls(
+        self,
+        loop: SingleSessionAgentLoop,
+    ) -> None:
+        """Test termination when finish_reason is tool_calls but tool_calls is empty."""
+        response = LLMResponse(
+            content="",
+            tool_calls=[],
+            finish_reason="tool_calls",
+        )
+
+        assert loop._should_terminate(response, can_use_tools=True) is True
+
     def test_terminate_on_unknown_with_content_no_tools(
         self,
         loop: SingleSessionAgentLoop,
@@ -753,7 +766,39 @@ class TestToolExecution:
         ]
 
         assert len(tool_messages) == 1
-        assert "Error" in tool_messages[0]["content"]
+        assert "Something went wrong" in tool_messages[0]["content"]
+        assert "Tool execution failed" not in tool_messages[0]["content"]
+
+    @pytest.mark.asyncio
+    async def test_raise_when_tool_calls_returned_without_registry(
+        self,
+        agent_config: AgentRuntimeConfig,
+        tmp_context_builder: ContextBuilder,
+        tmp_storage: SessionStorage,
+    ) -> None:
+        """Test fail-fast behavior when model asks for tools but no registry is configured."""
+        provider = MockProvider()
+        provider.set_responses([
+            LLMResponse(
+                content="Calling tool",
+                tool_calls=[
+                    ToolCallResult(id="call_1", name="test_tool", arguments={"input": "test"})
+                ],
+                finish_reason="tool_calls",
+            ),
+        ])
+
+        loop = SingleSessionAgentLoop(
+            session_id="test-session",
+            agent_config=agent_config,
+            storage=tmp_storage,
+            context_builder=tmp_context_builder,
+            provider=provider,
+            tool_registry=None,
+        )
+
+        with pytest.raises(RuntimeError, match="no tool registry"):
+            await loop.run_turn("Test input")
 
 
 class TestStepCounting:

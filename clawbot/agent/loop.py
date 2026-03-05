@@ -154,7 +154,7 @@ class SingleSessionAgentLoop:
         Termination conditions:
         1. can_use_tools is False (already in summary mode)
         2. finish_reason is "stop" or "length" (normal completion)
-        3. finish_reason is "unknown" but no tool_calls and has content
+        3. finish_reason is "unknown" but no tool_calls
         4. finish_reason is not "tool_calls" (other completion states)
         """
         if not can_use_tools:
@@ -166,10 +166,10 @@ class SingleSessionAgentLoop:
             return True
 
         if finish_reason == "tool_calls":
-            return False
+            return not bool(response.tool_calls)
 
         if finish_reason == "unknown":
-            if response.content and not response.tool_calls:
+            if not response.tool_calls:
                 return True
             return False
 
@@ -198,6 +198,11 @@ class SingleSessionAgentLoop:
             temp=self.agent_config.temperature,
             tools=tools,
         )
+
+        if response.tool_calls and can_use_tools and not self.tool_registry:
+            raise RuntimeError(
+                "Model requested tool calls but no tool registry is configured"
+            )
 
         if not response.tool_calls or not can_use_tools:
             if response.content:
@@ -241,10 +246,16 @@ class SingleSessionAgentLoop:
         results = []
         for tc in tool_calls:
             result = await self.tool_registry.execute(tc.name, tc.arguments)
+            error_message = None
+            if isinstance(result, str) and result.startswith("Error"):
+                if result.startswith("Error:"):
+                    error_message = result[len("Error:"):].strip()
+                else:
+                    error_message = result[len("Error"):].lstrip(": ").strip()
             results.append({
                 "tool_call_id": tc.id,
                 "content": result,
-                "error": None if not result.startswith("Error") else "Tool execution failed",
+                "error": error_message,
             })
         return results
 
