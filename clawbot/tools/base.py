@@ -1,6 +1,7 @@
 """Base class for agent tools."""
 
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 
@@ -20,6 +21,10 @@ class Tool(ABC):
         "array": list,
         "object": dict,
     }
+
+    def __init__(self, workspace: Path | str | None = None):
+        self.workspace: Path | None = None
+        self.set_workspace(workspace)
 
     @property
     @abstractmethod
@@ -51,6 +56,10 @@ class Tool(ABC):
             String result of the tool execution.
         """
         pass
+
+    def set_workspace(self, workspace: Path | str | None) -> None:
+        """Bind tool to a workspace (optional)."""
+        self.workspace = Path(workspace).expanduser() if workspace else None
 
     def validate_params(self, params: dict[str, Any]) -> list[str]:
         """Validate tool parameters against JSON schema. Returns error list (empty if valid)."""

@@ -9,6 +9,7 @@ and dispatches to inner loops
 SingleSessionAgentLoop: Inner loop, bound to single session, executes conversation flow
 """
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from clawbot.agent.config import AgentRuntimeConfig
@@ -33,13 +34,15 @@ class BaseAgentLoopHandler:
         storage: SessionStorage,
         context_builder: ContextBuilder,
         providers: dict[str, "BaseProvider"],
-        tool_registry: ToolRegistry,
+        tool_registry: ToolRegistry | None,
+        tool_registry_factory: Callable[[AgentRuntimeConfig], ToolRegistry] | None = None,
     ):
         self.global_config = global_config
         self.storage = storage
         self.context_builder = context_builder
         self.providers = providers
         self.tool_registry = tool_registry
+        self.tool_registry_factory = tool_registry_factory
 
         self._session_loops: dict[tuple[str, str], "SingleSessionAgentLoop"] = {}
 
@@ -58,6 +61,11 @@ class BaseAgentLoopHandler:
 
         raise ValueError(f"No provider available for model: {model}")
 
+    def _resolve_tool_registry(self, agent_config: AgentRuntimeConfig) -> ToolRegistry:
+        if self.tool_registry_factory:
+            return self.tool_registry_factory(agent_config)
+        return self.tool_registry or ToolRegistry()
+
     def _get_or_create_loop(
         self,
         session_id: str,
@@ -67,13 +75,14 @@ class BaseAgentLoopHandler:
 
         if loop_key not in self._session_loops:
             provider = self._resolve_provider(agent_config.model)
+            tool_registry = self._resolve_tool_registry(agent_config)
             self._session_loops[loop_key] = SingleSessionAgentLoop(
                 session_id=session_id,
                 agent_config=agent_config,
                 storage=self.storage,
                 context_builder=self.context_builder,
                 provider=provider,
-                tool_registry=self.tool_registry,
+                tool_registry=tool_registry,
             )
 
         return self._session_loops[loop_key]
@@ -89,7 +98,7 @@ class SingleSessionAgentLoop:
         storage: SessionStorage,
         context_builder: ContextBuilder,
         provider: "BaseProvider",
-        tool_registry: ToolRegistry,
+        tool_registry: ToolRegistry | None,
     ):
         self.session_id = session_id
         self.agent_config = agent_config
@@ -316,7 +325,8 @@ class GlobalAgentLoop(BaseAgentLoopHandler):
         context_builder: ContextBuilder,
         providers: dict[str, "BaseProvider"],
         queue_manager: "TaskQueueManager",
-        tool_registry: ToolRegistry,
+        tool_registry: ToolRegistry | None,
+        tool_registry_factory: Callable[[AgentRuntimeConfig], ToolRegistry] | None = None,
     ):
         super().__init__(
             global_config,
@@ -324,6 +334,7 @@ class GlobalAgentLoop(BaseAgentLoopHandler):
             context_builder,
             providers,
             tool_registry,
+            tool_registry_factory=tool_registry_factory,
         )
         self.queue_manager = queue_manager
         self.running = False
@@ -400,7 +411,8 @@ class CliHandler(BaseAgentLoopHandler):
         storage: SessionStorage,
         context_builder: ContextBuilder,
         providers: dict[str, "BaseProvider"],
-        tool_registry: ToolRegistry,
+        tool_registry: ToolRegistry | None,
+        tool_registry_factory: Callable[[AgentRuntimeConfig], ToolRegistry] | None = None,
     ):
         super().__init__(
             global_config,
@@ -408,6 +420,7 @@ class CliHandler(BaseAgentLoopHandler):
             context_builder,
             providers,
             tool_registry,
+            tool_registry_factory=tool_registry_factory,
         )
 
     def _get_or_create_loop(

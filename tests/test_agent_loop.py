@@ -7,9 +7,11 @@ import pytest
 
 from clawbot.agent.config import AgentRuntimeConfig
 from clawbot.agent.context import ContextBuilder
-from clawbot.agent.loop import SingleSessionAgentLoop
+from clawbot.agent.loop import CliHandler, SingleSessionAgentLoop
+from clawbot.config.schema import AgentsConfig, ClawbotConfig
 from clawbot.provider.base import LLMResponse
 from clawbot.storage.session import SessionConfig, SessionStorage
+from clawbot.tools.filesystem import ReadFileTool
 from clawbot.tools.registry import ToolRegistry
 
 
@@ -230,3 +232,116 @@ class TestSingleSessionAgentLoopHistory:
         assert len(user_messages) == 2
         assert user_messages[0]["content"] == "First message"
         assert user_messages[1]["content"] == "Second message"
+
+
+class TestCliHandlerToolRegistryBinding:
+    """Tests for session+agent bound tool registry behavior."""
+
+    def _create_handler(
+        self,
+        default_workspace: Path,
+        tool_registry: ToolRegistry | None = None,
+        tool_registry_factory: Any | None = None,
+    ) -> CliHandler:
+        config = ClawbotConfig(
+            agents=AgentsConfig.model_validate(
+                {
+                    "default": {"workspace": str(default_workspace), "model": "zhipu/glm-4.7"},
+                    "code": {"workspace": str(default_workspace / "code"), "model": "zhipu/glm-4.7"},
+                }
+            )
+        )
+        storage = SessionStorage(config=SessionConfig(workspace=str(default_workspace)))
+        context_builder = ContextBuilder(storage=storage, default_workspace=str(default_workspace))
+
+        return CliHandler(
+            global_config=config,
+            storage=storage,
+            context_builder=context_builder,
+            providers={"mock": MockProvider()},
+            tool_registry=tool_registry,
+            tool_registry_factory=tool_registry_factory,
+        )
+
+    def test_registry_is_bound_by_session_and_agent(self, tmp_path: Path) -> None:
+        """Different agents under same session should get separate registries."""
+        default_workspace = tmp_path / "default"
+        code_workspace = default_workspace / "code"
+        default_workspace.mkdir(parents=True)
+        code_workspace.mkdir(parents=True)
+
+        calls: list[str] = []
+
+        def registry_factory(agent_config: AgentRuntimeConfig) -> ToolRegistry:
+            calls.append(agent_config.name)
+            workspace = Path(agent_config.workspace)
+            registry = ToolRegistry()
+            registry.register(ReadFileTool(workspace=workspace, allowed_dir=workspace))
+            return registry
+
+        handler = self._create_handler(
+            default_workspace=default_workspace,
+            tool_registry=ToolRegistry(),
+            tool_registry_factory=registry_factory,
+        )
+
+        default_loop = handler._get_or_create_loop("session-1", "default")
+        code_loop = handler._get_or_create_loop("session-1", "code")
+
+        assert default_loop is not code_loop
+        assert default_loop.tool_registry is not code_loop.tool_registry
+        assert calls == ["default", "code"]
+
+        default_reader = default_loop.tool_registry.get("read_file")
+        code_reader = code_loop.tool_registry.get("read_file")
+        assert isinstance(default_reader, ReadFileTool)
+        assert isinstance(code_reader, ReadFileTool)
+        assert default_reader.workspace == default_workspace
+        assert code_reader.workspace == code_workspace
+
+    def test_loop_reuses_registry_for_same_session_agent(self, tmp_path: Path) -> None:
+        """Same session+agent should reuse the cached loop and registry."""
+        default_workspace = tmp_path / "default"
+        (default_workspace / "code").mkdir(parents=True)
+
+        call_count = 0
+
+        def registry_factory(agent_config: AgentRuntimeConfig) -> ToolRegistry:
+            nonlocal call_count
+            call_count += 1
+            workspace = Path(agent_config.workspace)
+            registry = ToolRegistry()
+            registry.register(ReadFileTool(workspace=workspace, allowed_dir=workspace))
+            return registry
+
+        handler = self._create_handler(
+            default_workspace=default_workspace,
+            tool_registry=ToolRegistry(),
+            tool_registry_factory=registry_factory,
+        )
+
+        loop1 = handler._get_or_create_loop("session-2", "code")
+        loop2 = handler._get_or_create_loop("session-2", "code")
+
+        assert loop1 is loop2
+        assert call_count == 1
+
+    def test_static_registry_path_still_works_without_factory(self, tmp_path: Path) -> None:
+        """Compatibility: when no factory is provided, static registry is used."""
+        default_workspace = tmp_path / "default"
+        (default_workspace / "code").mkdir(parents=True)
+
+        shared_registry = ToolRegistry()
+        shared_registry.register(MockTool(name="shared_tool"))
+
+        handler = self._create_handler(
+            default_workspace=default_workspace,
+            tool_registry=shared_registry,
+            tool_registry_factory=None,
+        )
+
+        default_loop = handler._get_or_create_loop("session-3", "default")
+        code_loop = handler._get_or_create_loop("session-3", "code")
+
+        assert default_loop.tool_registry is shared_registry
+        assert code_loop.tool_registry is shared_registry
