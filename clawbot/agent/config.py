@@ -17,7 +17,6 @@ class AgentRuntimeConfig:
     model: str
     max_tokens: int
     temperature: float
-    max_tool_iterations: int
     memory_window: int
     max_steps: int | None = None
 
@@ -36,9 +35,8 @@ class AgentRuntimeConfig:
             model=cfg.model,
             max_tokens=cfg.max_tokens,
             temperature=cfg.temperature,
-            max_tool_iterations=cfg.max_tool_iterations,
             memory_window=cfg.memory_window,
-            max_steps=getattr(cfg, 'max_steps', None),
+            max_steps=cfg.max_steps,
         )
 
     def to_session_config(self) -> SessionConfig:

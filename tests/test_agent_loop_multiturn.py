@@ -127,7 +127,6 @@ def agent_config(tmp_path: Path) -> AgentRuntimeConfig:
         model="zhipu/glm-4.7",
         max_tokens=4096,
         temperature=0.1,
-        max_tool_iterations=10,
         memory_window=100,
         max_steps=None,  # No limit by default
     )
@@ -512,7 +511,6 @@ class TestMaxStepsLimit:
             model="zhipu/glm-4.7",
             max_tokens=4096,
             temperature=0.1,
-            max_tool_iterations=10,
             memory_window=100,
             max_steps=2,  # Limit to 2 steps
         )
@@ -620,7 +618,6 @@ class TestMaxStepsLimit:
             model="zhipu/glm-4.7",
             max_tokens=4096,
             temperature=0.1,
-            max_tool_iterations=10,
             memory_window=100,
             max_steps=1,
         )

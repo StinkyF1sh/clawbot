@@ -65,13 +65,20 @@ class ExecTool(Tool):
         }
 
     async def execute(self, command: str, working_dir: str | None = None, **kwargs: Any) -> str:
-        cwd = working_dir or self.working_dir or (str(self.workspace) if self.workspace else os.getcwd())
+        cwd = (
+            working_dir
+            or self.working_dir
+            or (str(self.workspace) if self.workspace else os.getcwd())
+        )
         resolved_cwd = Path(cwd).expanduser().resolve()
 
         if self.restrict_to_workspace and self.workspace:
             workspace_root = self.workspace.resolve()
             if resolved_cwd != workspace_root and workspace_root not in resolved_cwd.parents:
-                return "Error: Command blocked by safety guard (working_dir outside agent workspace)"
+                return (
+                    "Error: Command blocked by safety guard "
+                    "(working_dir outside agent workspace)"
+                )
 
         guard_error = self._guard_command(command, str(resolved_cwd))
         if guard_error:

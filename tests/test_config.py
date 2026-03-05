@@ -21,7 +21,7 @@ class TestAgentDefaults:
         assert config.model == "zhipu/glm-4.7"
         assert config.max_tokens == 8192
         assert config.temperature == 0.1
-        assert config.max_tool_iterations == 40
+        assert config.max_steps == 40
         assert config.memory_window == 100
 
     def test_custom_values(self) -> None:

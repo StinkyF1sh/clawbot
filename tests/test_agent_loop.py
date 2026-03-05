@@ -111,7 +111,6 @@ class TestSingleSessionAgentLoopHistory:
             model="zhipu/glm-4.7",
             max_tokens=4096,
             temperature=0.1,
-            max_tool_iterations=10,
             memory_window=100,
         )
 
@@ -246,8 +245,14 @@ class TestCliHandlerToolRegistryBinding:
         config = ClawbotConfig(
             agents=AgentsConfig.model_validate(
                 {
-                    "default": {"workspace": str(default_workspace), "model": "zhipu/glm-4.7"},
-                    "code": {"workspace": str(default_workspace / "code"), "model": "zhipu/glm-4.7"},
+                    "default": {
+                        "workspace": str(default_workspace),
+                        "model": "zhipu/glm-4.7",
+                    },
+                    "code": {
+                        "workspace": str(default_workspace / "code"),
+                        "model": "zhipu/glm-4.7",
+                    },
                 }
             )
         )
