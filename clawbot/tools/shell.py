@@ -19,7 +19,10 @@ class ExecTool(Tool):
         deny_patterns: list[str] | None = None,
         allow_patterns: list[str] | None = None,
         restrict_to_workspace: bool = False,
+        workspace: str | Path | None = None,
     ):
+        resolved_workspace = workspace or working_dir
+        super().__init__(workspace=resolved_workspace)
         self.timeout = timeout
         self.working_dir = working_dir
         self.deny_patterns = deny_patterns or [
@@ -62,8 +65,22 @@ class ExecTool(Tool):
         }
 
     async def execute(self, command: str, working_dir: str | None = None, **kwargs: Any) -> str:
-        cwd = working_dir or self.working_dir or os.getcwd()
-        guard_error = self._guard_command(command, cwd)
+        cwd = (
+            working_dir
+            or self.working_dir
+            or (str(self.workspace) if self.workspace else os.getcwd())
+        )
+        resolved_cwd = Path(cwd).expanduser().resolve()
+
+        if self.restrict_to_workspace and self.workspace:
+            workspace_root = self.workspace.resolve()
+            if resolved_cwd != workspace_root and workspace_root not in resolved_cwd.parents:
+                return (
+                    "Error: Command blocked by safety guard "
+                    "(working_dir outside agent workspace)"
+                )
+
+        guard_error = self._guard_command(command, str(resolved_cwd))
         if guard_error:
             return guard_error
 
@@ -72,7 +89,7 @@ class ExecTool(Tool):
                 command,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
+                cwd=str(resolved_cwd),
             )
 
             try:

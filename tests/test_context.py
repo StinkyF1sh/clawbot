@@ -337,7 +337,6 @@ class TestContextBuilderBuild:
             model="zhipu/glm-4.7",
             max_tokens=4096,
             temperature=0.1,
-            max_tool_iterations=10,
             memory_window=50,
         )
 
@@ -363,7 +362,6 @@ class TestContextBuilderBuild:
             model="zhipu/glm-4.7",
             max_tokens=4096,
             temperature=0.1,
-            max_tool_iterations=10,
             memory_window=2,
         )
 
@@ -394,7 +392,6 @@ class TestContextBuilderBuild:
             model="zhipu/glm-4.7",
             max_tokens=4096,
             temperature=0.1,
-            max_tool_iterations=10,
             memory_window=100,
         )
 

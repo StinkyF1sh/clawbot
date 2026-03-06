@@ -134,6 +134,34 @@ class TestExecToolExecute:
         assert "test.txt" in result
 
     @pytest.mark.asyncio
+    async def test_execute_blocks_working_dir_outside_workspace(self, tmp_path: Path) -> None:
+        """Test that execute blocks working_dir values outside workspace."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+
+        tool = ExecTool(working_dir=str(workspace), restrict_to_workspace=True)
+        result = await tool.execute(command="echo blocked", working_dir=str(outside))
+
+        assert "blocked" in result
+        assert "outside agent workspace" in result
+
+    @pytest.mark.asyncio
+    async def test_execute_allows_working_dir_inside_workspace(self, tmp_path: Path) -> None:
+        """Test that execute allows working_dir values inside workspace."""
+        workspace = tmp_path / "workspace"
+        inside = workspace / "subdir"
+        inside.mkdir(parents=True)
+        marker = inside / "marker.txt"
+        marker.write_text("ok")
+
+        tool = ExecTool(working_dir=str(workspace), restrict_to_workspace=True)
+        result = await tool.execute(command="dir", working_dir=str(inside))
+
+        assert "marker.txt" in result
+
+    @pytest.mark.asyncio
     async def test_execute_command_with_stderr(self) -> None:
         """Test executing command that produces stderr."""
         tool = ExecTool()

@@ -124,6 +124,20 @@ class TestReadFileTool:
         assert result == "workspace content"
 
     @pytest.mark.asyncio
+    async def test_read_with_workspace_set_via_base_method(self, tmp_path: Path) -> None:
+        """Test setting workspace through Tool.set_workspace API."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        test_file = workspace / "test.txt"
+        test_file.write_text("workspace content")
+
+        tool = ReadFileTool()
+        tool.set_workspace(workspace)
+
+        result = await tool.execute(path="test.txt")
+        assert result == "workspace content"
+
+    @pytest.mark.asyncio
     async def test_read_outside_allowed_dir(self, tmp_path: Path) -> None:
         """Test reading file outside allowed directory."""
         allowed = tmp_path / "allowed"

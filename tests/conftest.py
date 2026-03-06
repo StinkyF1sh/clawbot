@@ -21,7 +21,7 @@ def sample_config_dict() -> dict:
                 "model": "glm-4.7",
                 "max_tokens": 8192,
                 "temperature": 0.1,
-                "max_tool_iterations": 40,
+                "max_steps": 40,
                 "memory_window": 100,
             },
             "code": {"model": "gpt-4", "temperature": 0.0},

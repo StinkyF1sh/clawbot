@@ -14,6 +14,7 @@ from clawbot.tools.registry import ToolRegistry
 from clawbot.tools.shell import ExecTool
 
 if TYPE_CHECKING:
+    from clawbot.agent.config import AgentRuntimeConfig
     from clawbot.provider.base import BaseProvider
 
 
@@ -63,10 +64,14 @@ def create_cli_handler(config: ClawbotConfig) -> CliHandler:
     providers = initialize_providers(config)
     tool_registry = initialize_tool_registry(config.workspace_path)
 
+    def tool_registry_factory(agent_config: "AgentRuntimeConfig") -> ToolRegistry:
+        return initialize_tool_registry(agent_config.workspace)
+
     return CliHandler(
         global_config=config,
         storage=storage,
         context_builder=context_builder,
         providers=providers,
         tool_registry=tool_registry,
+        tool_registry_factory=tool_registry_factory,
     )
