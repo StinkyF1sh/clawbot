@@ -1,5 +1,7 @@
 """Tests for agent context management module."""
 
+from pathlib import Path
+
 from clawbot.agent.context import (
     ContextBuilder,
     ConversationHistory,
@@ -23,6 +25,88 @@ class TestGetSystemPrompt:
         assert "You are a helpful AI assistant." in prompt
         assert workspace in prompt
         assert "You can read, write, and analyze files in this directory." in prompt
+
+    def test_system_prompt_injects_workspace_files_in_order(self, tmp_path) -> None:
+        """Test workspace markdown files are injected in the expected order."""
+        ordered_files = [
+            "AGENTS.md",
+            "SOUL.md",
+            "TOOLS.md",
+            "IDENTITY.md",
+            "USER.md",
+            "HEARTBEAT.md",
+            "BOOTSTRAP.md",
+            "MEMORY.md",
+        ]
+        for i, file_name in enumerate(ordered_files):
+            (tmp_path / file_name).write_text(f"{file_name} content {i}", encoding="utf-8")
+
+        prompt = get_system_prompt(str(tmp_path))
+
+        assert "## Project Context" in prompt
+        assert "## Workspace Files (injected)" in prompt
+
+        positions = [prompt.find(f"### {name}") for name in ordered_files]
+        assert all(pos != -1 for pos in positions)
+        assert positions == sorted(positions)
+
+    def test_system_prompt_skips_bootstrap_when_flag_false(self, tmp_path) -> None:
+        """Test BOOTSTRAP.md is skipped when include_bootstrap is False."""
+        (tmp_path / "BOOTSTRAP.md").write_text("bootstrap content", encoding="utf-8")
+
+        prompt = get_system_prompt(str(tmp_path), include_bootstrap=False)
+
+        assert "### BOOTSTRAP.md" not in prompt
+        assert "bootstrap content" not in prompt
+
+    def test_system_prompt_loads_memory_uppercase(self, tmp_path) -> None:
+        """Test MEMORY.md is loaded when present."""
+        (tmp_path / "MEMORY.md").write_text("uppercase memory", encoding="utf-8")
+
+        prompt = get_system_prompt(str(tmp_path))
+
+        assert "### MEMORY.md" in prompt
+        assert "uppercase memory" in prompt
+
+    def test_system_prompt_ignores_memory_lowercase_only(self, tmp_path) -> None:
+        """Test memory.md alone is ignored due to exact-case filename matching."""
+        (tmp_path / "memory.md").write_text("lowercase memory", encoding="utf-8")
+
+        prompt = get_system_prompt(str(tmp_path))
+
+        assert "### MEMORY.md" not in prompt
+        assert "lowercase memory" not in prompt
+
+    def test_system_prompt_handles_missing_bootstrap_file(self, tmp_path) -> None:
+        """Test missing BOOTSTRAP.md is handled without affecting other injections."""
+        (tmp_path / "AGENTS.md").write_text("agents content", encoding="utf-8")
+
+        prompt = get_system_prompt(str(tmp_path))
+
+        assert "### AGENTS.md" in prompt
+        assert "agents content" in prompt
+        assert "### BOOTSTRAP.md" not in prompt
+
+    def test_system_prompt_skips_unreadable_bootstrap_file(self, tmp_path, monkeypatch) -> None:
+        """Test unreadable BOOTSTRAP.md is skipped safely."""
+        (tmp_path / "AGENTS.md").write_text("agents content", encoding="utf-8")
+        (tmp_path / "BOOTSTRAP.md").write_text("bootstrap content", encoding="utf-8")
+
+        original_read_text = Path.read_text
+
+        def _mock_read_text(self: Path, *args, **kwargs) -> str:
+            if self.name == "BOOTSTRAP.md":
+                raise OSError("denied")
+            return original_read_text(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", _mock_read_text)
+
+        prompt = get_system_prompt(str(tmp_path))
+
+        assert "### AGENTS.md" in prompt
+        assert "agents content" in prompt
+        assert "### BOOTSTRAP.md" not in prompt
+        assert "bootstrap content" not in prompt
 
 
 class TestConversationHistoryInit:
@@ -147,6 +231,36 @@ class TestConversationHistoryStorage:
         assert len(history.messages) == 1
         assert history.messages[0]["role"] == "user"
         assert history._loaded is True
+
+    def test_history_load_creates_session_when_missing(self, tmp_path) -> None:
+        """Test load creates a session file when it does not exist."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        session_id = "new-session"
+
+        history = ConversationHistory(session_id, storage)
+        history.load()
+
+        assert history.is_new_session is True
+        assert storage.get_session_meta(session_id) is not None
+
+    def test_history_load_does_not_recreate_existing_session(self, tmp_path) -> None:
+        """Test load does not mark existing sessions as new."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        session_id = "existing-session"
+
+        storage.create_session(session_id)
+        before_meta = storage.get_session_meta(session_id)
+        assert before_meta is not None
+
+        history = ConversationHistory(session_id, storage)
+        history.load()
+
+        after_meta = storage.get_session_meta(session_id)
+        assert after_meta is not None
+        assert history.is_new_session is False
+        assert abs(after_meta.created_at - before_meta.created_at) < 1.0
 
     def test_load_only_once(self, tmp_path) -> None:
         """Test that load() only loads once."""
@@ -402,3 +516,66 @@ class TestContextBuilderBuild:
         )
         system_prompt = messages[0]["content"]
         assert str(tmp_path) in system_prompt
+
+    def test_build_bootstrap_only_once_for_new_session(self, tmp_path) -> None:
+        """Test BOOTSTRAP.md is injected only once for new sessions."""
+        (tmp_path / "BOOTSTRAP.md").write_text("bootstrap content", encoding="utf-8")
+
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage, default_workspace=str(tmp_path))
+        history = builder.create_history("new-session")
+        history.load()
+
+        first_messages = builder.build(
+            session_id="new-session",
+            user_input="hello",
+            history=history,
+        )
+        second_messages = builder.build(
+            session_id="new-session",
+            user_input="hello again",
+            history=history,
+        )
+
+        assert "### BOOTSTRAP.md" in first_messages[0]["content"]
+        assert "bootstrap content" in first_messages[0]["content"]
+        assert "### BOOTSTRAP.md" not in second_messages[0]["content"]
+
+    def test_build_existing_session_never_injects_bootstrap(self, tmp_path) -> None:
+        """Test existing sessions never inject BOOTSTRAP.md."""
+        (tmp_path / "BOOTSTRAP.md").write_text("bootstrap content", encoding="utf-8")
+
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage, default_workspace=str(tmp_path))
+        session_id = "existing-session"
+
+        storage.append_message(session_id, {"role": "user", "content": "already there"})
+        history = builder.create_history(session_id)
+        history.load()
+
+        messages = builder.build(
+            session_id=session_id,
+            user_input="new input",
+            history=history,
+        )
+
+        assert "### BOOTSTRAP.md" not in messages[0]["content"]
+
+    def test_build_without_history_never_injects_bootstrap(self, tmp_path) -> None:
+        """Test build(history=None) does not inject BOOTSTRAP.md."""
+        (tmp_path / "BOOTSTRAP.md").write_text("bootstrap content", encoding="utf-8")
+
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(storage=storage, default_workspace=str(tmp_path))
+
+        messages = builder.build(
+            session_id="new-session",
+            user_input="hello",
+            history=None,
+        )
+
+        assert messages[0]["role"] == "system"
+        assert "### BOOTSTRAP.md" not in messages[0]["content"]
