@@ -90,6 +90,12 @@ class TestLoadConfig:
   default:
     model: gpt-4
     temperature: 0.0
+skills:
+  enabled: true
+permission:
+  skills:
+    allow:
+      - "code_*"
 providers:
   openai:
     api_key: sk-test
@@ -100,6 +106,8 @@ providers:
         config = load_config(config_file)
         assert config.get_agent_config("default").model == "gpt-4"
         assert config.get_agent_config("default").temperature == 0.0
+        assert config.skills.enabled is True
+        assert config.permission.skills.allow == ["code_*"]
         assert config.providers.openai.api_key == "sk-test"
 
     def test_raises_file_not_found(self) -> None:

@@ -51,6 +51,36 @@ class ProvidersConfig(Base):
     zhipu: ProviderConfig = Field(default_factory=ProviderConfig) # Zhipu AI endpoint
     bailian: ProviderConfig = Field(default_factory=ProviderConfig) # Bailian endpoint
 
+
+class SkillsConfig(Base):
+    """Skill discovery and loading settings."""
+
+    enabled: bool = False
+    discovery_paths: list[str] = Field(
+        default_factory=lambda: [
+            ".clawbot/skills",
+            ".opencode/skills",
+            ".agents/skills",
+        ]
+    )
+    include_home: bool = True
+    max_description_length: int = 200
+
+
+class SkillsPermissionConfig(Base):
+    """Skill permission policy."""
+
+    allow: list[str] = Field(default_factory=lambda: ["*"])
+    deny: list[str] = Field(default_factory=list)
+    ask: list[str] = Field(default_factory=list)
+
+
+class PermissionConfig(Base):
+    """Global permission config."""
+
+    skills: SkillsPermissionConfig = Field(default_factory=SkillsPermissionConfig)
+
+
 class ClawbotConfig(BaseSettings):
     """Main configuration for Clawbot."""
 
@@ -58,6 +88,8 @@ class ClawbotConfig(BaseSettings):
         default_factory=lambda: AgentsConfig.model_validate({"default": AgentDefaults()})
     )
     providers: ProvidersConfig = Field(default_factory=ProvidersConfig)
+    skills: SkillsConfig = Field(default_factory=SkillsConfig)
+    permission: PermissionConfig = Field(default_factory=PermissionConfig)
 
     def get_agent_config(self, agent_name: str = "default") -> AgentDefaults:
         """Get agent configuration by name."""
