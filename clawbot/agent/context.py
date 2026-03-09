@@ -1,5 +1,7 @@
 """Context management for the Clawbot agent."""
 
+import html
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -78,9 +80,24 @@ def _format_workspace_injected_section(files: list[tuple[str, str]]) -> str:
     return "\n\n".join(parts)
 
 
+def _format_available_skills_section(available_skills: list[tuple[str, str]] | None) -> str:
+    """Format available skills catalog for progressive loading."""
+    if not available_skills:
+        return ""
+
+    parts = ["## Available Skills", "<available_skills>"]
+    for name, description in available_skills:
+        escaped_name = html.escape(name, quote=True)
+        escaped_description = html.escape(description, quote=False)
+        parts.append(f'  <skill name="{escaped_name}">{escaped_description}</skill>')
+    parts.append("</available_skills>")
+    return "\n".join(parts)
+
+
 def get_system_prompt(
     workspace: str | None = None,
     include_bootstrap: bool = True,
+    available_skills: list[tuple[str, str]] | None = None,
 ) -> str:
     """Generate system prompt with optional workspace context."""
     base_prompt = """You are a helpful AI assistant."""
@@ -97,6 +114,10 @@ You can read, write, and analyze files in this directory.
         )
         if injected:
             base_prompt += f"\n\n{injected}"
+
+    skills_section = _format_available_skills_section(available_skills)
+    if skills_section:
+        base_prompt += f"\n\n{skills_section}"
 
     return base_prompt
 
@@ -186,9 +207,11 @@ class ContextBuilder:
         self,
         storage: "SessionStorage",
         default_workspace: str | None = None,
+        skill_catalog_provider: Callable[[str], list[tuple[str, str]]] | None = None,
     ):
         self.storage = storage
         self.default_workspace = default_workspace
+        self.skill_catalog_provider = skill_catalog_provider
 
     def _get_max_window(self, agent_config: "AgentRuntimeConfig | None") -> int:
         return agent_config.memory_window if agent_config else 100
@@ -214,12 +237,20 @@ class ContextBuilder:
             if agent_config
             else self.default_workspace
         )
+        available_skills: list[tuple[str, str]] | None = None
+        if workspace and self.skill_catalog_provider:
+            try:
+                available_skills = self.skill_catalog_provider(workspace)
+            except Exception:
+                available_skills = None
+
         include_bootstrap = history.consume_bootstrap_flag() if history else False
         messages.append({
             "role": "system",
             "content": get_system_prompt(
                 workspace,
                 include_bootstrap=include_bootstrap,
+                available_skills=available_skills,
             ),
         })
 

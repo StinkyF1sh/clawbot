@@ -43,3 +43,19 @@ providers:
     api_key: ""  # Or set CLAWBOT_PROVIDERS__BAILIAN__API_KEY
     api_base: https://dashscope.aliyuncs.com/compatible-mode/v1
     extra_headers: null
+
+skills:
+  enabled: false
+  discovery_paths:
+    - .clawbot/skills
+    - .opencode/skills
+    - .agents/skills
+  include_home: true
+  max_description_length: 200
+
+permission:
+  skills:
+    allow:
+      - "*"
+    deny: []
+    ask: []

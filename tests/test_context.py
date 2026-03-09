@@ -108,6 +108,22 @@ class TestGetSystemPrompt:
         assert "### BOOTSTRAP.md" not in prompt
         assert "bootstrap content" not in prompt
 
+    def test_system_prompt_includes_available_skills(self) -> None:
+        """Test available_skills section is injected into prompt."""
+        prompt = get_system_prompt(
+            workspace=None,
+            available_skills=[
+                ("code_review", "Review code for bugs"),
+                ("writer", "Draft concise text"),
+            ],
+        )
+
+        assert "## Available Skills" in prompt
+        assert "<available_skills>" in prompt
+        assert '<skill name="code_review">Review code for bugs</skill>' in prompt
+        assert '<skill name="writer">Draft concise text</skill>' in prompt
+        assert "</available_skills>" in prompt
+
 
 class TestConversationHistoryInit:
     """Tests for ConversationHistory initialization."""
@@ -579,3 +595,22 @@ class TestContextBuilderBuild:
 
         assert messages[0]["role"] == "system"
         assert "### BOOTSTRAP.md" not in messages[0]["content"]
+
+    def test_build_injects_skill_catalog_from_provider(self, tmp_path) -> None:
+        """Test ContextBuilder injects catalog entries from skill provider."""
+        config = SessionConfig(workspace=str(tmp_path))
+        storage = SessionStorage(config=config)
+        builder = ContextBuilder(
+            storage=storage,
+            default_workspace=str(tmp_path),
+            skill_catalog_provider=lambda _: [("writer", "Draft concise text")],
+        )
+
+        messages = builder.build(
+            session_id="test-session",
+            user_input="hello",
+        )
+
+        system_prompt = messages[0]["content"]
+        assert "<available_skills>" in system_prompt
+        assert '<skill name="writer">Draft concise text</skill>' in system_prompt

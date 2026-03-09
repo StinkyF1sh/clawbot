@@ -6,8 +6,11 @@ from clawbot.config.schema import (
     AgentDefaults,
     AgentsConfig,
     ClawbotConfig,
+    PermissionConfig,
     ProviderConfig,
     ProvidersConfig,
+    SkillsConfig,
+    SkillsPermissionConfig,
 )
 
 
@@ -130,6 +133,8 @@ class TestClawbotConfig:
         config = ClawbotConfig()
         assert config.get_agent_config("default") is not None
         assert config.get_agent_config("default").model == "zhipu/glm-4.7"
+        assert config.skills.enabled is False
+        assert config.permission.skills.allow == ["*"]
 
     def test_workspace_path_property(self) -> None:
         """Test workspace_path property."""
@@ -218,3 +223,30 @@ class TestClawbotConfig:
         config = AgentDefaults(max_tokens=2048, temperature=0.5)
         assert config.max_tokens == 2048
         assert config.temperature == 0.5
+
+    def test_skills_config_defaults(self) -> None:
+        """Test default values for skills configuration."""
+        cfg = SkillsConfig()
+        assert cfg.enabled is False
+        assert cfg.discovery_paths == [
+            ".clawbot/skills",
+            ".opencode/skills",
+            ".agents/skills",
+        ]
+        assert cfg.include_home is True
+        assert cfg.max_description_length == 200
+
+    def test_permission_config_defaults(self) -> None:
+        """Test default values for permission configuration."""
+        cfg = PermissionConfig()
+        assert cfg.skills.allow == ["*"]
+        assert cfg.skills.deny == []
+        assert cfg.skills.ask == []
+
+    def test_permission_alias_support(self) -> None:
+        """Test camelCase alias support in nested permission config."""
+        cfg = SkillsPermissionConfig.model_validate(
+            {"allow": ["review_*"], "deny": ["review_admin"]}
+        )
+        assert cfg.allow == ["review_*"]
+        assert cfg.deny == ["review_admin"]
